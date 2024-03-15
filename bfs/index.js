@@ -1,10 +1,15 @@
 const startButton = document.getElementById("generate")
 const mazeContainer = document.getElementById("container")
 const currentAction = document.getElementById("current-action")
-const usedAlgorithm = document.getElementById("algo-selector")
+const generationSelect = document.getElementById("generation-select")
+const solvingSelect = document.getElementById("solving-select")
+const modeButton = document.getElementById("switch-mode")
+const modeText = modeButton.querySelector("span")
+const colRange = document.getElementById("cols")
+const rowRange = document.getElementById("rows")
 startButton.addEventListener("click", generateCells)
-
-let usedAlgo = null
+modeButton.addEventListener("click", switchMode)
+let fastMode = false
 
 /**
  * The Node class receives an HTML element as argument.
@@ -14,7 +19,7 @@ class Node {
 	constructor(element) {
 		this.element = element
 		this.visited = false
-		this.className = "wall"
+		this.className = "none"
 		this.goal = false
 	}
 
@@ -86,18 +91,46 @@ function updateText(string) {
 	currentAction.textContent = string
 }
 
-async function generateCells() {
-	usedAlgorithm.disabled = true
-	startButton.disabled = true
-	usedAlgo = usedAlgorithm.value
+function generateMatrice() {
 	const matrice = []
-	for (let i = 0; i < 20; i++) {
+	const [maxRow, maxCol] = getMatriceDimensions()
+	for (let i = 0; i < maxCol; i++) {
+		const subArray = []
+		for (let j = 0; j < maxRow; j++) {
+			const div = document.querySelector(
+				`.cell[data-row="${i}"][data-col="${j}"]`
+			)
+			const isStart = div.classList.contains("start")
+			const isEnd = div.classList.contains("end")
+			const node = new Node(div)
+			node.position = { x: i, y: j }
+			if (isStart) {
+				node.type = "start"
+			} else if (isEnd) {
+				node.type = "end"
+				node.goal = true
+			}
+			subArray.push(node)
+		}
+		matrice.push(subArray)
+	}
+	return matrice
+}
+
+async function generateCells() {
+	const [maxRow, maxCol] = getMatriceDimensions()
+	generationSelect.disabled = true
+	startButton.disabled = true
+	const matrice = []
+	for (let i = 0; i < maxRow; i++) {
 		const subArray = []
 		updateText(`Generating row ${i + 1}`)
-		for (let j = 0; j < 20; j++) {
+		for (let j = 0; j < maxCol; j++) {
 			const div = document.createElement("div")
 			// All cells starts as "walls" that will need to be explored
 			div.classList.add("wall", "cell")
+			div.dataset.row = i
+			div.dataset.col = j
 			mazeContainer.append(div)
 			// We then create a node instance, pushing it into a subArray and then in the matrice.
 			const node = new Node(div)
@@ -111,7 +144,9 @@ async function generateCells() {
 	}
 
 	const randomFinish =
-		matrice[Math.floor(Math.random() * 20)][Math.floor(Math.random() * 20)]
+		matrice[Math.floor(Math.random() * matrice.length)][
+			Math.floor(Math.random() * matrice[0].length)
+		]
 	randomFinish.goal = true
 	// Get a random finish. This is totally unecessary.
 
@@ -119,23 +154,58 @@ async function generateCells() {
 	await sleep(1000)
 	updateText("Need to create that maze now...")
 	await sleep(1000)
-
-	for (let i = 0; i < 3; i++) {
-		setTimeout(() => {
-			updateText(`Starting in ${3 - i}`)
-		}, i * 1000)
-	}
-
-	await sleep(3000)
 	updateText("Starting.")
 	await sleep(200)
-	generateMaze(matrice)
-	// A lot of fanciness for no reasons.
+	await generateMaze(matrice)
+	updateText("Click a cell in order to select a starting point")
+	generateListeners()
+}
+
+async function solveMaze() {
+	const [startRow, startCol] = getCoordinates("start")
+	const [endRow, endCol] = getCoordinates("end")
+	const matrice = generateMatrice(startRow, startCol, endRow, endCol)
+	const usedAlgo = solvingSelect.value
+	let count = 1
+	const stack = []
+	const startingPoint = matrice[startRow][startCol]
+	stack.push(startingPoint)
+	startingPoint.isVisited = true
+	updateText("exploring")
+	while (stack.length > 0) {
+		count++
+		updateText(`Explored ${count} cells`)
+		const currentNode = usedAlgo === "bfs" ? stack.shift() : stack.pop()
+		if (currentNode.goal) {
+			break
+		}
+		const neighbors = getUnvisitedNeighbors(matrice, currentNode, true)
+		console.log(neighbors)
+		if (neighbors.length > 0) {
+			stack.push(currentNode)
+			const rand = Math.floor(Math.random() * neighbors.length)
+			const { cell: nextNode, direction } = neighbors[rand]
+			nextNode.isVisited = true
+			nextNode.type = "explore"
+
+			await sleep(100)
+			stack.push(nextNode)
+		}
+	}
+}
+
+function getCoordinates(str) {
+	const cell = document.querySelector(`.cell.${str}`)
+	const row = Number(cell.dataset.row)
+	const col = Number(cell.dataset.col)
+	return [row, col]
 }
 
 async function generateMaze(matrice) {
+	const usedAlgo = generationSelect.value
 	const row = 0
 	const col = 0
+	let count = 1
 	/**
 	 * In DFS we use something called a stack with a LIFO order
 	 * LIFO: Last In, First Out. (think of a crowded subway, you're the last in: you're the first out.)
@@ -150,10 +220,12 @@ async function generateMaze(matrice) {
 	// Add the starting point to our stack and visit it.
 	stack.push(startingPoint)
 	startingPoint.isVisited = true
-	startingPoint.type = "start"
+	startingPoint.type = "path"
 	updateText("exploring")
 	// We will run as long as there is something to do.
 	while (stack.length > 0) {
+		count++
+		updateText(`Explored ${count} cells`)
 		// Here we switch between the FIFO or LIFO order using shift / pop
 		const currentNode = usedAlgo === "bfs" ? stack.shift() : stack.pop()
 		// Get all the valid neighbor of the current node
@@ -169,11 +241,9 @@ async function generateMaze(matrice) {
 			currentNode.removeBorder(direction)
 			nextNode.removeOppositeBorder(direction)
 			nextNode.isVisited = true
-			if (nextNode.goal) {
-				nextNode.type = "end"
-			} else {
-				nextNode.type = "path"
-			}
+
+			nextNode.type = "path"
+
 			await sleep(100)
 			stack.push(nextNode)
 		}
@@ -181,7 +251,7 @@ async function generateMaze(matrice) {
 	// selectRandomNeighbor(matrice, row, col)
 }
 
-function getUnvisitedNeighbors(matrice, node) {
+function getUnvisitedNeighbors(matrice, node, solving = false) {
 	const { x, y } = node.position
 	const directions = {
 		left: [0, -1],
@@ -198,10 +268,38 @@ function getUnvisitedNeighbors(matrice, node) {
 			nodeIsAccessible(matrice, row, col) &&
 			!nodeIsVisited(matrice, row, col)
 		) {
-			neighbors.push({ cell: matrice[row][col], direction: key })
+			if (!solving) {
+				neighbors.push({ cell: matrice[row][col], direction: key })
+			}
+			if (solving && thereIsNoBorder(node, key)) {
+				neighbors.push({ cell: matrice[row][col], direction: key })
+			}
+			// console.log(
+			// 	matrice[row][col].element.style.borderRight,
+			// 	matrice[row][col].element.style.borderTop
+			// )
 		}
 	}
 	return neighbors
+}
+function thereIsNoBorder(node, direction) {
+	const style = getComputedStyle(node.element)
+	let value = ""
+	switch (direction) {
+		case "left":
+			value = parseInt(style.borderLeft)
+			break
+		case "right":
+			value = parseInt(style.borderRight)
+			break
+		case "up":
+			value = parseInt(style.borderTop)
+			break
+		case "down":
+			value = parseInt(style.borderBottom)
+			break
+	}
+	return value === 0
 }
 
 function nodeIsAccessible(matrice, row, col) {
@@ -213,16 +311,54 @@ function nodeIsAccessible(matrice, row, col) {
 	}
 }
 
+function generateListeners() {
+	document.querySelectorAll(".cell").forEach((cell) => {
+		cell.addEventListener("click", pickCell)
+	})
+}
+function removeListeners() {
+	document.querySelectorAll(".cell").forEach((cell) => {
+		cell.removeEventListener("click", pickCell)
+	})
+}
+
+async function pickCell(event) {
+	if (thereIsNoStartingCell()) {
+		event.target.classList.add("start")
+		updateText("Now select a cell to be the the exit of the maze")
+	} else {
+		event.target.classList.add("end")
+		updateText("Removing listeners...")
+		removeListeners()
+		await sleep(1000)
+		solveMaze()
+	}
+}
+
+function thereIsNoStartingCell() {
+	return !Boolean(document.querySelector(".start"))
+}
+
 function nodeIsVisited(matrice, row, col) {
 	return matrice[row][col].isVisited
 }
 
 function sleep(time = 200) {
 	return new Promise((resolve) => {
+		if (fastMode) return resolve()
 		setTimeout(() => {
 			resolve()
 		}, time)
 	})
 }
 
-// Tested comment
+function getMatriceDimensions() {
+	const rows = Number(rowRange.value)
+	const cols = Number(colRange.value)
+	return [rows, cols]
+}
+
+function switchMode() {
+	fastMode = !fastMode
+	modeText.textContent = fastMode ? "Slow" : "Fast"
+}

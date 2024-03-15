@@ -8,14 +8,48 @@
 		<script type="module" src="./index.js"></script>
 	</head>
 	<body>
-		<select name="algorithm" id="algo-selector">
-			<option selected value="dfs">Depth-First-Search</option>
-			<option value="bfs">Breadth-First-Search</option>
-		</select>
-		<button id="generate">Generate</button>
-		<button disabled id="solve">Solve Maze</button>
+		<fieldset>
+			<legend>Settings</legend>
+			<div>
+				<label for="cols">Columns (min. 20): </label>
+				<input
+					type="range"
+					name="cols"
+					id="cols"
+					value="20"
+					max="100"
+					step="1" />
+			</div>
+			<div>
+				<label for="rows">Rows (min. 20): </label>
+				<input
+					type="range"
+					name="rows"
+					id="rows"
+					value="20"
+					max="100"
+					step="1" />
+			</div>
+		</fieldset>
+		<fieldset>
+			<legend>Generation</legend>
+			<select name="algorithm" id="generation-select">
+				<option selected value="dfs">Depth-First-Search</option>
+				<option value="bfs">Breadth-First-Search</option>
+			</select>
+			<button id="generate">Generate</button>
+		</fieldset>
+		<fieldset>
+			<legend>Solving</legend>
+			<select name="algorithm" id="solving-select">
+				<option selected value="dfs">Depth-First-Search</option>
+				<option value="bfs">Breadth-First-Search</option>
+			</select>
+			<button disabled id="solve">Solve Maze</button>
+		</fieldset>
 
 		<h2>Action: <span id="current-action"></span></h2>
 		<div id="container"></div>
+		<button id="switch-mode">Turn to <span>Fast</span> mode.</button>
 	</body>
 </html>

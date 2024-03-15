@@ -2,8 +2,15 @@
 	box-sizing: border-box;
 }
 
+fieldset {
+	max-width: fit-content;
+}
+body {
+	text-align: center;
+}
+
 #container {
-	max-width: 500px;
+	max-height: fit-content;
 	min-height: 500px;
 	outline: 1px solid black;
 	margin: 0 auto;
@@ -24,6 +31,9 @@
 	background-color: white;
 }
 
+.explore {
+	background-color: aquamarine;
+}
 .wall {
 	background-color: black;
 }
